@@ -2,7 +2,6 @@ import { NextResponse } from "next/server"
 import { getDatabase } from "@/lib/mongodb"
 import { verifyAuth } from "@/lib/auth"
 import { hashPassword } from "@/lib/password"
-import { sendProfileChangeEmail } from "@/lib/email"
 import { ObjectId } from "mongodb"
 
 export async function GET(request: Request) {
@@ -110,20 +109,7 @@ export async function PUT(request: Request) {
       .collection("users")
       .findOne({ _id: new ObjectId(user.userId) }, { projection: { password: 0 } })
 
-    // decide important fields that require email notification
-    const important = ["email", "phone", "dateOfBirth", "address", "emergencyContact", "bloodGroup"]
-    const importantChanged = Object.keys(changedFields).some((f) => important.includes(f))
-
-    if (importantChanged) {
-      try {
-        const email = (updatedUser as any)?.email || (existing as any)?.email
-        if (email) {
-          await sendProfileChangeEmail(email, changedFields)
-        }
-      } catch (e) {
-        console.error("Failed to send profile change email", e)
-      }
-    }
+    // email notifications for profile changes were removed per request
 
     return NextResponse.json({ message: "Profile updated successfully", user: updatedUser, changeLogId: insertRes.insertedId.toString() })
   } catch (error) {

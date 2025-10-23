@@ -1478,8 +1478,7 @@ export default function PatientProfile() {
                       }}>
                         <span style={{ fontSize: "20px" }}>⚠️</span>
                         <div style={{ fontSize: "13px", color: "#92400e", lineHeight: "1.5" }}>
-                          <strong>Important:</strong> You're changing sensitive information. 
-                          An email notification will be sent to your registered email address.
+                          <strong>Important:</strong> You're changing sensitive information.
                         </div>
                       </div>
                     )}
