@@ -196,4 +196,119 @@ describe('API /api/profile', () => {
     expect(res.status).toBe(200);
     expect(j.user.name).toBe('Old');
   });
+
+  it('GET returns 500 when verifyAuth throws', async () => {
+    // Make verifyAuth throw to hit GET catch block
+    (verifyAuth as jest.Mock).mockImplementationOnce(() => { throw new Error('boom') })
+    const res = await GET(req('GET'))
+    const j = await res.json()
+    expect(res.status).toBe(500)
+    expect(j.error).toBe('Failed to fetch profile')
+  })
+
+  it('PUT updates fields without password change', async () => {
+    okAuth('65f0b4f2c0c9c3b0a1a1a1a1')
+    const { users, changeLog } = mkDb()
+    const _id = new ObjectId('65f0b4f2c0c9c3b0a1a1a1a1')
+    const existing = {
+      _id,
+      name: 'Old',
+      email: 'old@x.com',
+      password: 'stored',
+      phone: '123',
+    }
+    users.findOne
+      .mockResolvedValueOnce(existing) // read existing
+      .mockResolvedValueOnce({ _id, name: 'New', email: 'old@x.com', phone: '999' }) // after update projection
+    changeLog.insertOne.mockResolvedValue({ insertedId: new ObjectId() })
+
+    const res = await PUT(
+      req('PUT', {
+        name: 'New',
+        phone: '999'
+      })
+    )
+    const json = await res.json()
+    expect(res.status).toBe(200)
+    expect(users.updateOne).toHaveBeenCalledWith(
+      { _id },
+      expect.objectContaining({ $set: expect.objectContaining({ name: 'New', phone: '999' }) })
+    )
+    expect(changeLog.insertOne).toHaveBeenCalled()
+    expect(json.user.name).toBe('New')
+  })
+
+  it('POST returns 400 when change log has no before snapshot', async () => {
+    okAuth('65f0b4f2c0c9c3b0a1a1a1a1')
+    const { changeLog } = mkDb()
+    const changeId = new ObjectId()
+    changeLog.findOne.mockResolvedValue({ _id: changeId, userId: new ObjectId(), before: null })
+    const res = await POST(req('POST', { changeLogId: changeId.toString() }))
+    const j = await res.json()
+    expect(res.status).toBe(400)
+    expect(j.error).toBe('Invalid change log')
+  })
+
+  it('PUT returns 404 when existing user not found', async () => {
+    okAuth()
+    const { users } = mkDb()
+    users.findOne.mockResolvedValue(null)
+    const res = await PUT(req('PUT', { name: 'DoesNotExist' }))
+    const j = await res.json()
+    expect(res.status).toBe(404)
+    expect(j.error).toBe('User not found')
+  })
+
+  it('POST returns 401 when unauthorized', async () => {
+    noAuth()
+    const res = await POST(req('POST', { changeLogId: new ObjectId().toString() }))
+    const j = await res.json()
+    expect(res.status).toBe(401)
+    expect(j.error).toBe('Unauthorized')
+  })
+
+  it('POST returns 500 when changeLog.findOne throws', async () => {
+    okAuth()
+    const db = mkDb()
+    ;(db.changeLog.findOne as jest.Mock).mockImplementationOnce(() => { throw new Error('boom') })
+    const res = await POST(req('POST', { changeLogId: new ObjectId().toString() }))
+    const j = await res.json()
+    expect(res.status).toBe(500)
+    expect(j.error).toBe('Failed to undo profile change')
+  })
+
+  it('PUT returns 500 when verifyAuth throws', async () => {
+    (verifyAuth as jest.Mock).mockImplementationOnce(() => { throw new Error('boom') })
+    const res = await PUT(req('PUT', { name: 'X' }))
+    const j = await res.json()
+    expect(res.status).toBe(500)
+    expect(j.error).toBe('Failed to update profile')
+  })
+
+  it('PUT with empty body still updates updatedAt and logs change (covers undefined branches)', async () => {
+    const uid = '65f0b4f2c0c9c3b0a1a1a1a1'
+    okAuth(uid)
+    const { users, changeLog } = mkDb()
+    const _id = new ObjectId(uid)
+    const existing = {
+      _id,
+      name: 'Old',
+      email: 'old@x.com',
+      password: 'stored',
+    }
+    // first findOne returns existing, second returns after-update projection
+    users.findOne.mockResolvedValueOnce(existing).mockResolvedValueOnce({ _id, name: 'Old', email: 'old@x.com' })
+    changeLog.insertOne.mockResolvedValue({ insertedId: new ObjectId() })
+
+    const res = await PUT(req('PUT', {}))
+    const json = await res.json()
+    expect(res.status).toBe(200)
+    // updateOne should be called with at least the filter and a $set object
+    expect(users.updateOne).toHaveBeenCalledWith(
+      { _id },
+      expect.objectContaining({ $set: expect.any(Object) })
+    )
+    expect(changeLog.insertOne).toHaveBeenCalled()
+    expect(json.changeLogId).toBeDefined()
+  })
 });
