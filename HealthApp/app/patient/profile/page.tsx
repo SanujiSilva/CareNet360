@@ -70,6 +70,7 @@ export default function PatientProfile() {
     newPassword: "",
     confirmPassword: "",
   })
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
   useEffect(() => {
     fetchProfile()
@@ -103,11 +104,99 @@ export default function PatientProfile() {
     }
   }
 
+  // Client-side validation for edit form
+  const validateForm = () => {
+    const errors: Record<string, string> = {}
+
+    // Require key fields to be filled (user requested "fill all columns")
+    const requiredFields = [
+      'name',
+      'phone',
+      'dateOfBirth',
+      'gender',
+      'address',
+      'emergencyContact',
+      'bloodGroup'
+    ]
+
+    for (const f of requiredFields) {
+      const v = (formData as any)[f]
+      if (!v || String(v).trim() === '') {
+        errors[f] = 'This field is required'
+      }
+    }
+
+    // Name length
+    if (!errors.name && formData.name.trim().length < 2) {
+      errors.name = 'Full name must be at least 2 characters'
+    }
+
+    // Phone: enforce exactly 10 digits
+    if (!errors.phone) {
+      const digits = formData.phone.replace(/\D/g, '')
+      if (digits.length !== 10) {
+        errors.phone = 'Please enter a valid phone number (10 digits)'
+      }
+    }
+
+    // Date of birth: not in future
+    if (!errors.dateOfBirth && formData.dateOfBirth) {
+      const dob = new Date(formData.dateOfBirth)
+      const today = new Date()
+      dob.setHours(0,0,0,0)
+      today.setHours(0,0,0,0)
+      if (dob > today) {
+        errors.dateOfBirth = 'Date of birth cannot be in the future'
+      }
+    }
+
+    // Emergency contact: enforce exactly 10 digits
+    if (!errors.emergencyContact) {
+      const digits = (formData.emergencyContact || '').replace(/\D/g, '')
+      if (digits.length !== 10) {
+        errors.emergencyContact = 'Please enter a valid emergency contact (10 digits)'
+      }
+    }
+
+    // Password rules
+    if (formData.newPassword) {
+      if (formData.newPassword.length < 6) {
+        errors.newPassword = 'New password must be at least 6 characters'
+      }
+      if (!formData.currentPassword) {
+        errors.currentPassword = 'Current password is required to change password'
+      }
+      if (formData.newPassword !== formData.confirmPassword) {
+        errors.confirmPassword = 'Passwords do not match'
+      }
+    }
+
+    // Blood group validation
+    const validBlood = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+    if (!errors.bloodGroup && formData.bloodGroup && !validBlood.includes(formData.bloodGroup)) {
+      errors.bloodGroup = 'Invalid blood group selected'
+    }
+
+    setFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  // Today's date in YYYY-MM-DD to limit the date input (prevent picking future dates)
+  const todayISO = new Date().toISOString().slice(0, 10)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage("")
 
-    // Validate password change
+    // Run client-side validation
+    const valid = validateForm()
+    if (!valid) {
+      setMessage("Please fix the form errors before saving.")
+      setSaving(false)
+      return
+    }
+
+    // password match check is also covered in validateForm, keep safety
     if (formData.newPassword && formData.newPassword !== formData.confirmPassword) {
       setMessage("New passwords do not match")
       setSaving(false)
@@ -780,10 +869,12 @@ export default function PatientProfile() {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
+                    aria-invalid={!!formErrors.name}
+                    aria-describedby={formErrors.name ? 'err-name' : undefined}
                     style={{
                       padding: "12px 16px",
                       borderRadius: "10px",
-                      border: "2px solid #e2e8f0",
+                      border: formErrors.name ? "2px solid #ef4444" : "2px solid #e2e8f0",
                       fontSize: "15px",
                       transition: "all 0.2s ease",
                       outline: "none"
@@ -791,6 +882,9 @@ export default function PatientProfile() {
                     onFocus={(e) => e.currentTarget.style.borderColor = "#667eea"}
                     onBlur={(e) => e.currentTarget.style.borderColor = "#e2e8f0"}
                   />
+                  {formErrors.name && (
+                    <span id="err-name" style={{ color: '#b91c1c', fontSize: '13px', marginTop: '6px' }}>{formErrors.name}</span>
+                  )}
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -821,10 +915,13 @@ export default function PatientProfile() {
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="+1 (555) 000-0000"
+                    aria-invalid={!!formErrors.phone}
+                    aria-describedby={formErrors.phone ? 'err-phone' : undefined}
+                    required
                     style={{
                       padding: "12px 16px",
                       borderRadius: "10px",
-                      border: "2px solid #e2e8f0",
+                      border: formErrors.phone ? "2px solid #ef4444" : "2px solid #e2e8f0",
                       fontSize: "15px",
                       transition: "all 0.2s ease",
                       outline: "none"
@@ -832,6 +929,9 @@ export default function PatientProfile() {
                     onFocus={(e) => e.currentTarget.style.borderColor = "#667eea"}
                     onBlur={(e) => e.currentTarget.style.borderColor = "#e2e8f0"}
                   />
+                  {formErrors.phone && (
+                    <span id="err-phone" style={{ color: '#b91c1c', fontSize: '13px', marginTop: '6px' }}>{formErrors.phone}</span>
+                  )}
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
@@ -841,17 +941,24 @@ export default function PatientProfile() {
                       type="date"
                       value={formData.dateOfBirth}
                       onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                      style={{
-                        padding: "12px 16px",
-                        borderRadius: "10px",
-                        border: "2px solid #e2e8f0",
-                        fontSize: "15px",
-                        transition: "all 0.2s ease",
-                        outline: "none"
-                      }}
+                        max={todayISO}
+                        aria-invalid={!!formErrors.dateOfBirth}
+                        aria-describedby={formErrors.dateOfBirth ? 'err-dob' : undefined}
+                        required
+                        style={{
+                          padding: "12px 16px",
+                          borderRadius: "10px",
+                          border: formErrors.dateOfBirth ? "2px solid #ef4444" : "2px solid #e2e8f0",
+                          fontSize: "15px",
+                          transition: "all 0.2s ease",
+                          outline: "none"
+                        }}
                       onFocus={(e) => e.currentTarget.style.borderColor = "#667eea"}
                       onBlur={(e) => e.currentTarget.style.borderColor = "#e2e8f0"}
                     />
+                      {formErrors.dateOfBirth && (
+                        <span id="err-dob" style={{ color: '#b91c1c', fontSize: '13px', marginTop: '6px' }}>{formErrors.dateOfBirth}</span>
+                      )}
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -886,6 +993,7 @@ export default function PatientProfile() {
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                     placeholder="Enter your full address"
                     rows={3}
+                    required
                     style={{
                       padding: "12px 16px",
                       borderRadius: "10px",
@@ -908,10 +1016,13 @@ export default function PatientProfile() {
                     value={formData.emergencyContact || ""}
                     onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
                     placeholder="Emergency contact number"
+                    aria-invalid={!!formErrors.emergencyContact}
+                    aria-describedby={formErrors.emergencyContact ? 'err-emer' : undefined}
+                    required
                     style={{
                       padding: "12px 16px",
                       borderRadius: "10px",
-                      border: "2px solid #e2e8f0",
+                      border: formErrors.emergencyContact ? "2px solid #ef4444" : "2px solid #e2e8f0",
                       fontSize: "15px",
                       transition: "all 0.2s ease",
                       outline: "none"
@@ -919,6 +1030,9 @@ export default function PatientProfile() {
                     onFocus={(e) => e.currentTarget.style.borderColor = "#667eea"}
                     onBlur={(e) => e.currentTarget.style.borderColor = "#e2e8f0"}
                   />
+                  {formErrors.emergencyContact && (
+                    <span id="err-emer" style={{ color: '#b91c1c', fontSize: '13px', marginTop: '6px' }}>{formErrors.emergencyContact}</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -950,10 +1064,13 @@ export default function PatientProfile() {
                   <select
                     value={formData.bloodGroup}
                     onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
-                    style={{
+                    aria-invalid={!!formErrors.bloodGroup}
+                    aria-describedby={formErrors.bloodGroup ? 'err-bg' : undefined}
+                      required
+                      style={{
                       padding: "12px 16px",
                       borderRadius: "10px",
-                      border: "2px solid #e2e8f0",
+                      border: formErrors.bloodGroup ? "2px solid #ef4444" : "2px solid #e2e8f0",
                       fontSize: "15px",
                       transition: "all 0.2s ease",
                       outline: "none",
@@ -972,6 +1089,9 @@ export default function PatientProfile() {
                     <option value="O+">O+</option>
                     <option value="O-">O-</option>
                   </select>
+                  {formErrors.bloodGroup && (
+                    <span id="err-bg" style={{ color: '#b91c1c', fontSize: '13px', marginTop: '6px' }}>{formErrors.bloodGroup}</span>
+                  )}
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -1059,10 +1179,12 @@ export default function PatientProfile() {
                   value={formData.currentPassword}
                   onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
                   placeholder="Enter current password"
+                  aria-invalid={!!formErrors.currentPassword}
+                  aria-describedby={formErrors.currentPassword ? 'err-curpw' : undefined}
                   style={{
                     padding: "12px 16px",
                     borderRadius: "10px",
-                    border: "2px solid #e2e8f0",
+                    border: formErrors.currentPassword ? "2px solid #ef4444" : "2px solid #e2e8f0",
                     fontSize: "15px",
                     transition: "all 0.2s ease",
                     outline: "none"
@@ -1070,6 +1192,9 @@ export default function PatientProfile() {
                   onFocus={(e) => e.currentTarget.style.borderColor = "#f59e0b"}
                   onBlur={(e) => e.currentTarget.style.borderColor = "#e2e8f0"}
                 />
+                {formErrors.currentPassword && (
+                  <span id="err-curpw" style={{ color: '#b91c1c', fontSize: '13px', marginTop: '6px' }}>{formErrors.currentPassword}</span>
+                )}
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -1079,10 +1204,12 @@ export default function PatientProfile() {
                   value={formData.newPassword}
                   onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
                   placeholder="Enter new password"
+                  aria-invalid={!!formErrors.newPassword}
+                  aria-describedby={formErrors.newPassword ? 'err-newpw' : undefined}
                   style={{
                     padding: "12px 16px",
                     borderRadius: "10px",
-                    border: "2px solid #e2e8f0",
+                    border: formErrors.newPassword ? "2px solid #ef4444" : "2px solid #e2e8f0",
                     fontSize: "15px",
                     transition: "all 0.2s ease",
                     outline: "none"
@@ -1090,6 +1217,9 @@ export default function PatientProfile() {
                   onFocus={(e) => e.currentTarget.style.borderColor = "#f59e0b"}
                   onBlur={(e) => e.currentTarget.style.borderColor = "#e2e8f0"}
                 />
+                {formErrors.newPassword && (
+                  <span id="err-newpw" style={{ color: '#b91c1c', fontSize: '13px', marginTop: '6px' }}>{formErrors.newPassword}</span>
+                )}
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -1099,10 +1229,12 @@ export default function PatientProfile() {
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   placeholder="Confirm new password"
+                  aria-invalid={!!formErrors.confirmPassword}
+                  aria-describedby={formErrors.confirmPassword ? 'err-conpw' : undefined}
                   style={{
                     padding: "12px 16px",
                     borderRadius: "10px",
-                    border: "2px solid #e2e8f0",
+                    border: formErrors.confirmPassword ? "2px solid #ef4444" : "2px solid #e2e8f0",
                     fontSize: "15px",
                     transition: "all 0.2s ease",
                     outline: "none"
@@ -1110,6 +1242,9 @@ export default function PatientProfile() {
                   onFocus={(e) => e.currentTarget.style.borderColor = "#f59e0b"}
                   onBlur={(e) => e.currentTarget.style.borderColor = "#e2e8f0"}
                 />
+                {formErrors.confirmPassword && (
+                  <span id="err-conpw" style={{ color: '#b91c1c', fontSize: '13px', marginTop: '6px' }}>{formErrors.confirmPassword}</span>
+                )}
               </div>
             </div>
           </div>
