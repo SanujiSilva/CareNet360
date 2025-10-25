@@ -5,6 +5,8 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import styles from "../patient.module.css"
+import type { TimeSlot } from "@/lib/types"
+import { toast } from '@/hooks/use-toast'
 
 interface User {
   id: string
@@ -36,6 +38,7 @@ export default function PatientDashboard() {
   const [loading, setLoading] = useState(true)
   const [activeView, setActiveView] = useState("dashboard")
   const [showBookingModal, setShowBookingModal] = useState(false)
+  const [topBanner, setTopBanner] = useState<{ type: 'success' | 'error' | 'info' | null; text?: string }>({ type: null })
 
   useEffect(() => {
     fetchUserData()
@@ -155,6 +158,13 @@ export default function PatientDashboard() {
       <main className={styles.mainContent}>
         {activeView === "dashboard" && (
           <>
+            {/* Global top banner (appears at top of main content) */}
+            {topBanner.type && topBanner.text && (
+              <div className={`${styles.topBanner} ${topBanner.type === 'error' ? styles.topBannerError : topBanner.type === 'success' ? styles.topBannerSuccess : styles.topBannerInfo}`}>
+                <div>{topBanner.text}</div>
+                <button className={styles.topBannerClose} onClick={() => setTopBanner({ type: null })} aria-label="Close">×</button>
+              </div>
+            )}
             <div className={styles.pageHeader}>
               <h1 className={styles.pageTitle}>Welcome back, {user?.name}!</h1>
               <p className={styles.pageSubtitle}>Here's your health overview</p>
@@ -312,6 +322,7 @@ export default function PatientDashboard() {
             setShowBookingModal(false)
             fetchAppointments()
           }}
+          setTopBanner={setTopBanner}
         />
       )}
     </div>
@@ -677,11 +688,15 @@ function PrescriptionsView() {
 function BookAppointmentModal({
   onClose,
   onSuccess,
+  setTopBanner,
 }: {
   onClose: () => void
   onSuccess: () => void
+  setTopBanner?: React.Dispatch<React.SetStateAction<{ type: 'success' | 'error' | 'info' | null; text?: string }>>
 }) {
   const [doctors, setDoctors] = useState<any[]>([])
+  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([])
+  const [slotsLoading, setSlotsLoading] = useState(false)
   const [formData, setFormData] = useState({
     doctorId: "",
     date: "",
@@ -689,10 +704,17 @@ function BookAppointmentModal({
     reason: "",
   })
   const [loading, setLoading] = useState(false)
+  const [banner, setBanner] = useState<{ type: 'success' | 'error' | 'info' | null; text?: string }>({ type: null })
 
   useEffect(() => {
     fetchDoctors()
   }, [])
+
+  useEffect(() => {
+    if (formData.doctorId && formData.date) {
+      fetchAvailableSlots()
+    }
+  }, [formData.doctorId, formData.date])
 
   const fetchDoctors = async () => {
     try {
@@ -705,8 +727,86 @@ function BookAppointmentModal({
     }
   }
 
+  const fetchAvailableSlots = async () => {
+    if (!formData.doctorId || !formData.date) return
+    
+    setSlotsLoading(true)
+    setFormData(prev => ({ ...prev, time: "" })) // Reset selected time when slots change
+
+    try {
+      const response = await fetch(`/api/doctors/${formData.doctorId}/slots?date=${formData.date}`)
+      const data = await response.json()
+      
+      setAvailableSlots([])
+      
+      if (!response.ok) {
+        console.error('[v0] Slots API returned non-OK:', response.status, data)
+        
+        // Check if it's a "no schedule" error
+        if (data?.error?.includes('No schedule found')) {
+          setBanner({ type: 'info', text: 'No schedule found for this doctor. Please select a different date.' })
+          if (setTopBanner) setTopBanner({ type: 'info', text: 'No schedule found for this doctor.' })
+        } else {
+          const msg = data?.userMessage || data?.error || 'Failed to load slots'
+          setBanner({ type: 'error', text: msg })
+          if (setTopBanner) setTopBanner({ type: 'error', text: msg })
+        }
+        return
+      }
+
+      // If slots array is empty but response is OK, it means no available slots
+      if (data.slots && data.slots.length === 0) {
+        setBanner({ type: 'info', text: 'No available time slots for this date. Please try selecting a different date.' })
+        if (setTopBanner) setTopBanner({ type: 'info', text: 'No available slots for selected date.' })
+        return
+      }
+
+      // Clear any previous error/info messages if slots are found
+      setBanner({ type: null })
+      if (setTopBanner) setTopBanner({ type: null })
+
+      setAvailableSlots(data.slots || [])
+    } catch (error) {
+      console.error("[v0] Fetch available slots error:", error)
+      setAvailableSlots([])
+    } finally {
+      setSlotsLoading(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Validate doctor selection
+    if (!formData.doctorId) {
+      toast({
+        title: "Doctor Required",
+        description: "Please select a doctor to continue.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate date selection
+    if (!formData.date) {
+      toast({
+        title: "Missing Date",
+        description: "Please select a valid appointment date.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate time slot selection
+    if (!formData.time) {
+      toast({
+        title: "Missing Time Slot",
+        description: "Please select an available time slot.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setLoading(true)
 
     try {
@@ -716,12 +816,54 @@ function BookAppointmentModal({
         body: JSON.stringify(formData),
       })
 
-      if (!response.ok) throw new Error("Failed to book appointment")
+      const body = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        // Slot full -> show server message when available
+        const msg = body.error || "Failed to book appointment"
+        // show inline banner fallback
+        setBanner({ type: 'error', text: msg })
+        // also try toast if available
+        try {
+          toast({ title: 'Booking failed', description: msg })
+        } catch (e) {
+          console.error('Toast error', e)
+        }
+        return
+      }
+
+      // show inline banner and toast to the user with selected doctor/time
+      try {
+        const doctor = doctors.find((d) => d._id === formData.doctorId)
+        const title = ' Appointment Booked Successfully'
+        const description = `Your appointment with Dr. ${doctor?.name || ''} has been confirmed for ${formData.date} at ${formData.time}`
+        // inline banner
+        setBanner({ type: 'success', text: description })
+        // also try toast
+        try {
+          toast({
+            title,
+            description,
+            variant: 'success',
+            duration: 5000
+          })
+        } catch (e) {
+          console.log('Toast error', e)
+        }
+      } catch (e) {
+        console.log('Toast error', e)
+      }
 
       onSuccess()
     } catch (error) {
       console.error("[v0] Book appointment error:", error)
-      alert("Failed to book appointment")
+      // inline fallback message
+      setBanner({ type: 'error', text: 'Failed to book appointment' })
+      try {
+        toast({ title: 'Booking failed', description: 'Failed to book appointment' })
+      } catch (e) {
+        console.error('Toast error', e)
+      }
     } finally {
       setLoading(false)
     }
@@ -737,16 +879,32 @@ function BookAppointmentModal({
           </button>
         </div>
 
+        {banner.type && banner.text && (
+          <div className={`${styles.banner} ${banner.type === 'success' ? styles.bannerSuccess : styles.bannerError}`}>
+            {banner.text}
+            <button className={styles.bannerClose} onClick={() => setBanner({ type: null })} aria-label="Close">×</button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className={styles.form}>
           <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Select Doctor</label>
+            <label className={styles.formLabel}>Select Doctor *</label>
             <select
               className={styles.formSelect}
               value={formData.doctorId}
-              onChange={(e) => setFormData({ ...formData, doctorId: e.target.value })}
+              onChange={(e) => {
+                setFormData({ ...formData, doctorId: e.target.value, date: "", time: "" });
+                if (!e.target.value) {
+                  toast({
+                    title: "Doctor Required",
+                    description: "Please select a doctor to continue.",
+                    variant: "destructive"
+                  });
+                }
+              }}
               required
             >
-              <option value="">Choose a doctor</option>
+              <option value="">Please select a doctor to continue</option>
               {doctors.map((doctor) => (
                 <option key={doctor._id} value={doctor._id}>
                   Dr. {doctor.name} - {doctor.specialization || "General"}
@@ -764,18 +922,94 @@ function BookAppointmentModal({
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
               min={new Date().toISOString().split("T")[0]}
               required
+              onFocus={async (e) => {
+                if (!formData.doctorId) {
+                  toast({
+                    title: "Doctor Required",
+                    description: "Please select a doctor to continue.",
+                    variant: "destructive"
+                  });
+                  e.target.blur()
+                  return
+                }
+
+                // Fetch doctor's schedule dates
+                const response = await fetch(`/api/doctors/schedules?doctorId=${formData.doctorId}`)
+                if (!response.ok) {
+                  alert("Failed to fetch doctor's schedule")
+                  return
+                }
+
+                const data = await response.json()
+                const availableDates = data.schedules
+                  .filter(schedule => schedule.isAvailable)
+                  .map(schedule => new Date(schedule.date).toISOString().split("T")[0])
+
+                // Set the available dates as the datepicker's valid values
+                e.target.setAttribute("min", availableDates[0] || new Date().toISOString().split("T")[0])
+                e.target.setAttribute("max", availableDates[availableDates.length - 1] || "")
+              }}
             />
           </div>
 
           <div className={styles.formGroup}>
-            <label className={styles.formLabel}>Time</label>
-            <input
-              type="time"
-              className={styles.formInput}
-              value={formData.time}
-              onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-              required
-            />
+            <label className={styles.formLabel}>Available Time Slots</label>
+            {slotsLoading ? (
+              <div className={styles.loadingSlots}>Loading available slots...</div>
+            ) : availableSlots.length > 0 ? (
+              <div className={styles.timeSlots}>
+                  {availableSlots.map((slot) => {
+                    // compute visual state class: unavailable, limited (some bookings), available
+                    const isSelected = formData.time === slot.startTime
+                    const isUnavailable = !slot.available
+                    const isLimited = !isUnavailable && slot.maxPatients && (slot.bookedPatients || 0) > 0
+
+                    const className = [
+                      styles.timeSlot,
+                      isUnavailable ? styles.unavailable : styles.available,
+                      isLimited ? styles.limited : "",
+                      isSelected ? styles.selected : "",
+                    ].filter(Boolean).join(" ")
+
+                    return (
+                      <button
+                        key={`${slot.startTime}-${slot.endTime}`}
+                        type="button"
+                        className={className}
+                        onClick={() => setFormData(prev => ({ ...prev, time: slot.startTime }))}
+                        disabled={!slot.available}
+                      >
+                        {slot.startTime}
+                        {slot.maxPatients && (
+                          <span className={styles.slotCapacity}>
+                            ({slot.bookedPatients || 0}/{slot.maxPatients})
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+              </div>
+            ) : formData.doctorId && formData.date ? (
+              <div className={styles.noSlots}>
+                {banner.type === 'info' ? (
+                  banner.text
+                ) : (
+                  'No available time slots. Please select a different date.'
+                )}
+              </div>
+            ) : !formData.doctorId ? (
+              <div className={styles.noSlots}>
+                Please select a doctor to see available slots
+              </div>
+            ) : !formData.date ? (
+              <div className={styles.noSlots}>
+                Please select an appointment date
+              </div>
+            ) : (
+              <div className={styles.noSlots}>
+                Select both doctor and date to see available slots
+              </div>
+            )}
           </div>
 
           <div className={styles.formGroup}>

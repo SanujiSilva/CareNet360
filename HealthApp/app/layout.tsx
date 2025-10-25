@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
+import { Providers } from '@/components/providers'
 
 export const metadata: Metadata = {
   title: "Healthcare Management System",
@@ -17,8 +18,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {children}
-        <Analytics />
+        <Providers>
+          {children}
+          <Analytics />
+        </Providers>
       </body>
     </html>
   )
