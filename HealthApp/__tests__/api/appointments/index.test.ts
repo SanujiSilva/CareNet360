@@ -71,7 +71,7 @@ describe("Appointments API (GET & POST)", () => {
     ;(getDatabase as jest.Mock).mockResolvedValue(mockDb)
   })
 
-  // ✅ --- POST Tests ---
+  //  --- POST Tests ---
   it("creates a new appointment successfully", async () => {
     ;(getSession as jest.Mock).mockResolvedValue({ userId: "u123", role: "patient" })
 
@@ -147,7 +147,7 @@ describe("Appointments API (GET & POST)", () => {
     expect(res.status).toBe(500)
   })
 
-  // ✅ --- GET Tests ---
+  // --- GET Tests ---
   it("fetches appointments successfully", async () => {
     ;(getSession as jest.Mock).mockResolvedValue({ userId: "d123", role: "doctor" })
 
