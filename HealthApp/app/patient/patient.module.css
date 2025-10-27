@@ -624,6 +624,170 @@
   gap: 0.5rem;
 }
 
+.timeSlots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.timeSlot {
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.timeSlot:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: var(--color-surface-secondary);
+}
+
+.timeSlot.selected {
+  border-color: var(--color-primary);
+  background: var(--color-surface-secondary);
+  color: var(--color-primary);
+}
+
+.timeSlot.unavailable {
+  background: var(--color-surface-secondary);
+  border-color: var(--color-border-light);
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+/* Available slot (greenish) */
+.timeSlot.available {
+  background: linear-gradient(135deg, rgba(236, 252, 235, 1), var(--color-surface));
+  border-color: rgba(34,197,94,0.15);
+  color: var(--color-text-primary);
+}
+
+/* Limited slot (some bookings already made) */
+.timeSlot.limited {
+  background: linear-gradient(135deg, rgba(255,250,235,1), var(--color-surface));
+  border-color: rgba(245,158,11,0.15);
+  color: #92400e;
+}
+
+.timeSlot.full {
+  background: linear-gradient(135deg, rgba(254,242,242,1), var(--color-surface));
+  border-color: rgba(239,68,68,0.12);
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
+/* Selected slot should visually stand out (override other state rules) */
+.timeSlot.selected {
+  border-color: var(--color-primary) !important;
+  background: linear-gradient(135deg, rgba(219,234,254,1), var(--color-surface)) !important;
+  color: var(--color-primary) !important;
+  box-shadow: 0 6px 18px rgba(59,130,246,0.12);
+  transform: translateY(-2px);
+}
+
+.slotCapacity {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.loadingSlots {
+  padding: 1rem;
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+.noSlots {
+  padding: 1rem;
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  background: var(--color-surface-secondary);
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--color-border);
+}
+
+/* Inline banner shown inside booking modal as toast fallback */
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+
+/* Prominent top-of-page banner (global) */
+.topBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  font-weight: 700;
+  box-shadow: 0 8px 30px rgba(16, 24, 40, 0.06);
+  border: 1px solid rgba(0,0,0,0.04);
+}
+
+.topBannerSuccess {
+  background: linear-gradient(90deg, rgba(220, 252, 231, 1), rgba(236, 249, 255, 1));
+  color: rgba(6, 95, 70, 1);
+  border-color: rgba(16, 185, 129, 0.12);
+}
+
+.topBannerError {
+  background: linear-gradient(90deg, rgba(255, 245, 245, 1), rgba(255, 250, 240, 1));
+  color: rgba(153, 27, 27, 1);
+  border-color: rgba(239, 68, 68, 0.12);
+}
+
+.topBannerInfo {
+  background: linear-gradient(90deg, rgba(240, 249, 255, 1), rgba(250, 250, 255, 1));
+  color: rgba(13, 71, 161, 1);
+  border-color: rgba(59, 130, 246, 0.08);
+}
+
+.topBannerClose {
+  background: transparent;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: inherit;
+}
+
+.bannerSuccess {
+  background: linear-gradient(90deg, rgba(236,253,245,1), rgba(236,249,255,1));
+  border: 1px solid rgba(34,197,94,0.12);
+  color: rgba(6,95,70,1);
+}
+
+.bannerError {
+  background: linear-gradient(90deg, rgba(255,245,245,1), rgba(255,250,240,1));
+  border: 1px solid rgba(239,68,68,0.12);
+  color: rgba(153,27,27,1);
+}
+
+.bannerClose {
+  background: transparent;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: inherit;
+  margin-left: 1rem;
+}
+
 .formLabel {
   font-size: 0.875rem;
   font-weight: 600;

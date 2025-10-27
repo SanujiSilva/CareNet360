@@ -4,6 +4,15 @@ import { getSession } from "@/lib/auth"
 import type { Appointment } from "@/lib/types"
 import { ObjectId } from "mongodb"
 
+const toObjectId = (id: unknown) => {
+  try {
+    if (typeof id === "string" && ObjectId.isValid(id)) return new ObjectId(id)
+  } catch (e) {
+    /* ignore */
+  }
+  return id
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession()
@@ -20,9 +29,9 @@ export async function GET(request: NextRequest) {
     const query: any = {}
 
     if (session.role === "patient") {
-      query.patientId = new ObjectId(session.userId)
+      query.patientId = toObjectId(session.userId)
     } else if (session.role === "doctor") {
-      query.doctorId = new ObjectId(session.userId)
+      query.doctorId = toObjectId(session.userId)
     }
 
     if (status) {
@@ -71,10 +80,53 @@ export async function POST(request: NextRequest) {
 
     const db = await getDatabase()
     const appointmentsCollection = db.collection<Appointment>("appointments")
+    const schedulesCollection = db.collection("doctor_schedules")
+
+    // Check slot availability before creating appointment
+    const queryDate = new Date(date)
+    const startOfDay = new Date(queryDate)
+    startOfDay.setHours(0, 0, 0, 0)
+    const endOfDay = new Date(queryDate)
+    endOfDay.setHours(23, 59, 59, 999)
+
+    // Try date-specific schedule first
+  const scheduleForDate = await schedulesCollection.findOne({ doctorId: toObjectId(doctorId), date: new Date(date) })
+
+    let slotMaxPatients = 1
+    if (scheduleForDate && Array.isArray(scheduleForDate.slots)) {
+      const slot = scheduleForDate.slots.find((s: any) => s.startTime === time)
+      if (slot) slotMaxPatients = slot.maxPatients || 1
+    } else {
+      // fallback: find weekly schedule and exceptions
+      const weeklyDoc = await schedulesCollection.findOne({ doctorId: new ObjectId(doctorId), weeklySchedule: { $exists: true } })
+      if (weeklyDoc) {
+        const dayOfWeek = queryDate.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase()
+        const exception = weeklyDoc.exceptions?.find((ex: any) => new Date(ex.date).toDateString() === queryDate.toDateString())
+        if (exception && exception.slots) {
+          const slot = exception.slots.find((s: any) => s.startTime === time)
+          if (slot) slotMaxPatients = slot.maxPatients || 1
+        } else if (weeklyDoc.weeklySchedule?.[dayOfWeek]) {
+          const slot = weeklyDoc.weeklySchedule[dayOfWeek].slots.find((s: any) => s.startTime === time)
+          if (slot) slotMaxPatients = slot.maxPatients || 1
+        }
+      }
+    }
+
+    // Count existing appointments for that doctor/date/time (excluding cancelled/no-show)
+    const existingCount = await appointmentsCollection.countDocuments({
+      doctorId: toObjectId(doctorId),
+      date: { $gte: startOfDay, $lt: endOfDay },
+      time,
+      status: { $nin: ["cancelled", "no-show"] },
+    })
+
+    if (existingCount >= slotMaxPatients) {
+      return NextResponse.json({ error: "Selected time slot is no longer available" }, { status: 409 })
+    }
 
     const newAppointment: Appointment = {
-      patientId: new ObjectId(session.userId),
-      doctorId: new ObjectId(doctorId),
+      patientId: toObjectId(session.userId) as any,
+      doctorId: toObjectId(doctorId) as any,
       date: new Date(date),
       time,
       status: "scheduled",

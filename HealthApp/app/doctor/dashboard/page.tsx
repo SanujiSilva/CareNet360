@@ -5,6 +5,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import styles from "../doctor.module.css"
+import DoctorSchedulePage from "../schedules/page"
 
 interface User {
   id: string
@@ -150,6 +151,13 @@ export default function DoctorDashboard() {
           >
             <span className={styles.navIcon}>👥</span>
             Patients
+          </button>
+          <button
+            className={`${styles.navItem} ${activeView === "schedules" ? styles.active : ""}`}
+            onClick={() => setActiveView("schedules")}
+          >
+            <span className={styles.navIcon}>🗓️</span>
+            Schedules
           </button>
           <button
             className={`${styles.navItem} ${activeView === "records" ? styles.active : ""}`}
@@ -393,6 +401,7 @@ export default function DoctorDashboard() {
 
         {activeView === "records" && <MedicalRecordsView />}
         {activeView === "prescriptions" && <PrescriptionsView />}
+        {activeView === "schedules" && <DoctorSchedulePage />}
       </main>
 
       {showRecordModal && selectedAppointment && (

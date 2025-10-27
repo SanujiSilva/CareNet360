@@ -1,5 +1,49 @@
 import type { ObjectId } from "mongodb"
 
+// Reconciled and consolidated types for scheduling system and core models
+
+export type DayOfWeek =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday"
+
+export interface TimeSlot {
+  startTime: string // e.g. "09:00"
+  endTime: string // e.g. "09:10"
+  maxPatients?: number
+  bookedPatients?: number
+  available?: boolean
+}
+
+export interface DoctorSchedule {
+  _id?: ObjectId
+  doctorId: ObjectId
+  // For single-date schedules (doctor sets availability on a specific date)
+  date?: Date
+  // Slots for date-specific schedules
+  slots?: TimeSlot[]
+  // Or weekly schedule for recurring availability
+  weeklySchedule?: {
+    [key in DayOfWeek]: {
+      isAvailable: boolean
+      slots: TimeSlot[]
+    }
+  }
+  // Exceptions override weekly schedule on a specific date
+  exceptions?: {
+    date: Date
+    isAvailable: boolean
+    slots?: TimeSlot[]
+  }[]
+  isAvailable?: boolean
+  createdAt?: Date
+  updatedAt?: Date
+}
+
 export interface Hospital {
   _id?: ObjectId
   name: string
@@ -10,13 +54,10 @@ export interface Hospital {
   type: "government" | "private" | "clinic"
   departments: string[]
   facilities: string[]
-  operatingHours: {
-    open: string
-    close: string
-  }
+  operatingHours: { open: string; close: string }
   status: "active" | "inactive"
-  createdAt: Date
-  updatedAt: Date
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 export interface User {
@@ -30,16 +71,23 @@ export interface User {
   gender?: "male" | "female" | "other"
   address?: string
   profileImage?: string
-  specialization?: string // for doctors
-  licenseNumber?: string // for doctors
-  department?: string // for doctors
-  hospitalId?: ObjectId // hospital association
+  specialization?: string
+  licenseNumber?: string
+  department?: string
+  hospitalId?: ObjectId
   allergies?: string
   bloodGroup?: string
   medicalHistory?: string
   emergencyContact?: string
-  createdAt: Date
-  updatedAt: Date
+  createdAt?: Date
+  updatedAt?: Date
+}
+
+export interface UserPayload {
+  userId: string
+  email: string
+  role: User["role"]
+  name: string
 }
 
 export interface Appointment {
@@ -51,8 +99,8 @@ export interface Appointment {
   status: "scheduled" | "completed" | "cancelled" | "no-show"
   reason: string
   notes?: string
-  createdAt: Date
-  updatedAt: Date
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 export interface MedicalRecord {
@@ -66,8 +114,8 @@ export interface MedicalRecord {
   prescriptions: ObjectId[]
   labResults?: string
   notes?: string
-  createdAt: Date
-  updatedAt: Date
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 export interface Prescription {
@@ -81,8 +129,8 @@ export interface Prescription {
   duration: string
   instructions?: string
   status: "active" | "completed" | "cancelled"
-  createdAt: Date
-  updatedAt: Date
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 export interface Medicine {
@@ -95,8 +143,8 @@ export interface Medicine {
   stock: number
   description?: string
   sideEffects?: string[]
-  createdAt: Date
-  updatedAt: Date
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 export interface Payment {
@@ -107,8 +155,8 @@ export interface Payment {
   paymentMethod: "card" | "cash" | "insurance"
   status: "pending" | "completed" | "failed" | "refunded"
   transactionId?: string
-  createdAt: Date
-  updatedAt: Date
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 export interface HealthCard {
@@ -118,13 +166,10 @@ export interface HealthCard {
   qrCode: string
   bloodGroup?: string
   allergies?: string[]
-  emergencyContact?: {
-    name: string
-    phone: string
-    relationship: string
-  }
+  emergencyContact?: { name: string; phone: string; relationship: string }
   medicalHistory?: string
   medicalConditions?: string[]
-  createdAt: Date
-  updatedAt: Date
+  createdAt?: Date
+  updatedAt?: Date
 }
+

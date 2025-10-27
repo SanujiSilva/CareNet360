@@ -25,35 +25,37 @@ export default function ScanQRPage() {
   const [showCamera, setShowCamera] = useState(false)
   const scannerRef = useRef<Html5QrcodeScanner | null>(null)
 
-  // ---- helpers -------------------------------------------------------------
+  
 
   /** Extract a health card number from any QR/text:
    *  - JSON: {"cardNumber":"HC...","patientId":"..."}
    *  - Plain: HC...
    *  - Fallback: try regex like HC[A-Za-z0-9]+ inside the string
    */
+
+  //open close
   const extractCardNumber = (raw: string): string | null => {
     if (!raw) return null
 
-    // Try JSON first
+    
     try {
       const parsed = JSON.parse(raw)
       if (parsed && typeof parsed.cardNumber === "string" && parsed.cardNumber.trim()) {
         return parsed.cardNumber.trim()
       }
     } catch {
-      // not JSON, continue
+      
     }
 
-    // Try key=value style
+    
     const kvMatch = raw.match(/cardNumber\s*[:=]\s*"?([A-Za-z0-9-_/]+)"?/i)
     if (kvMatch?.[1]) return kvMatch[1].trim()
 
-    // Try generic HC... pattern
+    
     const hcMatch = raw.match(/HC[A-Za-z0-9]+/i)
     if (hcMatch?.[0]) return hcMatch[0].trim()
 
-    // Plain text fallback
+    
     const trimmed = raw.trim()
     if (/^HC[A-Za-z0-9]+$/i.test(trimmed)) return trimmed
 
@@ -62,6 +64,7 @@ export default function ScanQRPage() {
 
   // ---- camera --------------------------------------------------------------
 
+  //single responsibility functions
   const startCameraScanner = () => {
     setShowCamera(true)
     setError("")
